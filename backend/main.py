@@ -12,6 +12,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from starlette.concurrency import run_in_threadpool
 from youtube_extractor import extract_youtube_transcript
 from summarizer import summarize_text_async, stream_final_notes
+import traceback
 
 app = FastAPI(title="KnowledgeBase AI Lite")
 
@@ -184,6 +185,8 @@ async def websocket_summarize(websocket: WebSocket):
         return
 
     except Exception as exc:
+        traceback.print_exc()  # Print the full error to Render logs
+
         try:
             await send_event(
                 "error",
