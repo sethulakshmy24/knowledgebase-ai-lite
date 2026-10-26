@@ -1,5 +1,6 @@
 
-const API_BASE_URL = "http://localhost:8000";
+import { API_URL } from "./config";
+
 
 export interface HealthResponse {
   status: string;
@@ -7,7 +8,7 @@ export interface HealthResponse {
 }
 
 export async function checkBackendHealth(): Promise<HealthResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/health`);
+  const response = await fetch(`${API_URL}/api/health`);
 
   if (!response.ok) {
     throw new Error(`Backend request failed: ${response.status}`);

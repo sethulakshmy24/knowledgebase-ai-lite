@@ -2,6 +2,8 @@
 import { useState } from "react";
 import "./App.css";
 import Summary from "./components/summary/summary";
+import { WS_URL } from "./config";
+
 
 type Mode = "text" | "url" | "youtube";
 
@@ -34,7 +36,7 @@ function handleSummarize() {
 
   setLoading(true);
 
-  const ws = new WebSocket("ws://localhost:8000/ws/summarize");
+  const ws = new WebSocket(`${WS_URL}/ws/summarize`);
 
   ws.onopen = () => {
     ws.send(

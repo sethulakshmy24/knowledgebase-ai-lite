@@ -165,6 +165,7 @@ async def ask_ollama_local_stream(
 # OpenRouter: non-streaming
 # ---------------------------
 
+
 async def ask_openrouter(
     client: httpx.AsyncClient,
     prompt: str,
@@ -181,38 +182,54 @@ async def ask_openrouter(
         },
         json={
             "model": OPENROUTER_MODEL,
-            "messages": [
-                {"role": "user", "content": prompt}
-            ],
+            "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.2,
             "max_tokens": max_tokens,
             "stream": False,
         },
     )
+
     response.raise_for_status()
-
     data = response.json()
+
+    if data.get("error"):
+        raise RuntimeError(
+            f"OpenRouter error: {data['error']}"
+        )
+
     choices = data.get("choices", [])
+    if not choices:
+        raise RuntimeError(
+            f"OpenRouter returned no choices. Response: {data}"
+        )
 
-    result = (
-        choices[0].get("message", {}).get("content", "")
-        if choices
-        else ""
-    )
+    choice = choices[0]
+    message = choice.get("message", {})
+    content = message.get("content")
 
-    if isinstance(result, list):
-        result = "".join(
+    if isinstance(content, list):
+        content = "".join(
             item.get("text", "")
-            for item in result
+            for item in content
             if isinstance(item, dict)
         )
 
-    result = result.strip() if isinstance(result, str) else ""
+    if isinstance(content, str) and content.strip():
+        return content.strip()
 
-    if not result:
-        raise RuntimeError("OpenRouter returned an empty response.")
+    finish_reason = choice.get("finish_reason", "unknown")
+    usage = data.get("usage", {})
+    reasoning_tokens = usage.get(
+        "completion_tokens_details", {}
+    ).get("reasoning_tokens", 0)
 
-    return result
+    raise RuntimeError(
+        "OpenRouter returned no text. "
+        f"Model: {data.get('model', OPENROUTER_MODEL)}; "
+        f"finish_reason: {finish_reason}; "
+        f"reasoning_tokens: {reasoning_tokens}. "
+        "Check model availability and token limits."
+    )
 
 
 # ---------------------------
