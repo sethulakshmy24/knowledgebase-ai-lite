@@ -169,7 +169,7 @@ async def ask_ollama_local_stream(
 async def ask_openrouter(
     client: httpx.AsyncClient,
     prompt: str,
-    max_tokens: int = 1200,
+    max_tokens: int = 3000,
 ) -> str:
     validate_provider()
 
@@ -185,6 +185,10 @@ async def ask_openrouter(
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.2,
             "max_tokens": max_tokens,
+             "reasoning": {
+                "effort": "minimal",
+                "exclude": True
+            },
             "stream": False,
         },
     )
