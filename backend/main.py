@@ -10,9 +10,8 @@ from youtube_extractor import extract_youtube_transcript
 import asyncio
 from fastapi import WebSocket, WebSocketDisconnect
 from starlette.concurrency import run_in_threadpool
-
-from summarizer import summarize_text_async
 from youtube_extractor import extract_youtube_transcript
+from summarizer import summarize_text_async, stream_final_notes
 
 app = FastAPI(title="KnowledgeBase AI Lite")
 
@@ -146,6 +145,8 @@ async def websocket_summarize(websocket: WebSocket):
                 note=note,
                 message=f"Completed section {index} of {total}.",
             )
+        async def on_text(text: str):
+            await send_event("text_delta", text=text)
 
         await send_event(
             "progress",
@@ -153,9 +154,22 @@ async def websocket_summarize(websocket: WebSocket):
             message="Generating detailed learning notes...",
         )
 
-        summary = await summarize_text_async(
+        # First summarize the source in chunks.
+        section_notes = await summarize_text_async(
             source_text,
             on_progress=on_chunk_progress,
+        )
+
+        # Stream the final notes to the frontend in small batches.
+        summary = await stream_final_notes(
+            [section_notes],
+            on_text=on_text,
+        )
+
+        await send_event(
+            "completed",
+            summary=summary,
+            message="Summary completed successfully.",
         )
 
         await send_event(
@@ -183,3 +197,6 @@ async def websocket_summarize(websocket: WebSocket):
             await websocket.close()
         except RuntimeError:
             pass
+
+async def send_text(text: str):
+    await send_event("text_delta", text=text)

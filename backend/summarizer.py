@@ -3,6 +3,8 @@ import re
 from collections.abc import Awaitable, Callable
 
 import httpx
+import json
+import httpx
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
 MODEL = "qwen2.5:7b-instruct"
@@ -66,6 +68,56 @@ async def ask_ollama(
 
     return result
 
+async def ask_ollama_stream(
+    client: httpx.AsyncClient,
+    prompt: str,
+    on_text,
+    max_tokens: int = 1200,
+) -> str:
+    full_response = ""
+    word_buffer = ""
+
+    async with client.stream(
+        "POST",
+        OLLAMA_URL,
+        json={
+            "model": MODEL,
+            "prompt": prompt,
+            "stream": True,
+            "options": {
+                "temperature": 0.2,
+                "num_ctx": 8192,
+                "num_predict": max_tokens,
+            },
+        },
+    ) as response:
+        response.raise_for_status()
+
+        async for line in response.aiter_lines():
+            if not line:
+                continue
+
+            data = json.loads(line)
+            token = data.get("response", "")
+
+            full_response += token
+            word_buffer += token
+
+            # Send approximately 10–12 words at a time.
+            if len(word_buffer.split()) >= 12:
+                await on_text(word_buffer)
+                word_buffer = ""
+
+            if data.get("done"):
+                break
+
+    if word_buffer:
+        await on_text(word_buffer)
+
+    if not full_response.strip():
+        raise RuntimeError("Ollama returned an empty response.")
+
+    return full_response
 
 async def summarize_chunk(
     client: httpx.AsyncClient,
@@ -156,6 +208,40 @@ SECTION NOTES:
 """ + "\n\n".join(notes)
 
         return await ask_ollama(client, final_prompt, max_tokens=3000)
+
+
+
+async def stream_final_notes(
+    notes: list[str],
+    on_text,
+) -> str:
+    prompt = """
+Create comprehensive, well-organized Python learning notes from
+the section notes below.
+
+Include:
+1. Topics covered
+2. Key concepts and explanations
+3. Important syntax and code examples
+4. Practical tips and common mistakes
+5. Key takeaways
+
+Use Markdown headings and code fences. Preserve distinct topics.
+Do not invent content not supported by the notes.
+These are detailed study notes, not a short summary.
+
+SECTION NOTES:
+""" + "\n\n".join(notes)
+
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(300.0, connect=10.0)
+    ) as client:
+        return await ask_ollama_stream(
+            client,
+            prompt,
+            on_text,
+            max_tokens=3000,
+        )
 
 
 # Preserve compatibility with existing synchronous callers for now.

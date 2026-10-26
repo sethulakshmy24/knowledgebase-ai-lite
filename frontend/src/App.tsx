@@ -16,9 +16,11 @@ function App() {
 
 const [progress, setProgress] = useState("");
 const [partialNotes, setPartialNotes] = useState<string[]>([]);
+const [streamingSummary, setStreamingSummary] = useState("");
 
 function handleSummarize() {
   setSummary("");
+  setStreamingSummary("");
   setError("");
   setProgress("");
   setPartialNotes([]);
@@ -52,33 +54,35 @@ function handleSummarize() {
         break;
 
       case "chunk_completed":
-        setPartialNotes((previous) => [...previous, data.note]);
-        setProgress(data.message);
+        setProgress(
+          `Processed chunk ${data.index} of ${data.total}`
+        );
+        break;
+
+      case "text_delta":
+        setStreamingSummary((previous) => previous + data.text);
         break;
 
       case "completed":
         setSummary(data.summary);
-        setProgress("Completed");
-        setLoading(false);
-        ws.close();
+        setProgress(data.message || "Completed");
         break;
 
       case "error":
         setError(data.message || "Summarization failed.");
-        setLoading(false);
         ws.close();
         break;
     }
-  };
 
-  ws.onerror = () => {
-    setError("Unable to connect to the summarization service.");
-    setLoading(false);
-  };
+    ws.onerror = () => {
+      setError("Unable to connect to the summarization service.");
+      setLoading(false);
+    };
 
-  ws.onclose = () => {
-    setLoading(false);
-  };
+    ws.onclose = () => {
+      setLoading(false);
+    };
+  }
 }
 
 
@@ -204,10 +208,13 @@ function handleSummarize() {
           </div>
         )}
 
-        {summary && (
+        {(streamingSummary || summary) && (
           <section className="result-section">
-            <h2>Summary</h2>
-            <Summary summary={summary} />
+            <h2>
+              {loading ? "Generating learning notes..." : "Final learning notes"}
+            </h2>
+
+            <Summary summary={streamingSummary || summary} />
           </section>
         )}
       </section>
